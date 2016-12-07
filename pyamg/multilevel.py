@@ -171,7 +171,7 @@ class multilevel_solver:
             A = level.A
             output += '   %2d   %10d   %10d [%5.2f%%]\n' %\
                 (n, A.shape[1], A.nnz,
-                (100 * float(A.nnz) / float(total_nnz)))
+                 (100 * float(A.nnz) / float(total_nnz)))
 
         return output
 
@@ -296,9 +296,9 @@ class multilevel_solver:
         >>> from pyamg.aggregation import smoothed_aggregation_solver
         >>> from pyamg.gallery import poisson
         >>> from scipy.sparse.linalg import cg
-        >>> from scipy import rand
+        >>> import scipy as sp
         >>> A = poisson((100, 100), format='csr')          # matrix
-        >>> b = rand(A.shape[0])                           # random RHS
+        >>> b = sp.rand(A.shape[0])                        # random RHS
         >>> ml = smoothed_aggregation_solver(A)            # AMG solver
         >>> M = ml.aspreconditioner(cycle='V')             # preconditioner
         >>> x, info = cg(A, b, tol=1e-8, maxiter=30, M=M)  # solve with CG
@@ -380,16 +380,27 @@ class multilevel_solver:
 
         if accel is not None:
 
+            # Check for symmetric smoothing scheme when using CG
+            if (accel is 'cg') and (self.symmetric_smoothing == False):
+                warn('Incompatible non-symmetric multigrid preconditioner detected, '
+                     'due to presmoother/postsmoother combination. CG requires SPD '
+                     'preconditioner, not just SPD matrix.')
+
             # Check for AMLI compatability
             if (accel != 'fgmres') and (cycle == 'AMLI'):
                 raise ValueError('AMLI cycles require acceleration (accel) \
                         to be fgmres, or no acceleration')
 
+            # py23 compatibility:
+            try:
+                basestring
+            except NameError:
+                basestring = str
+
             # Acceleration is being used
             if isinstance(accel, basestring):
                 from pyamg import krylov
                 from scipy.sparse.linalg import isolve
-
                 if hasattr(krylov, accel):
                     accel = getattr(krylov, accel)
                 else:
@@ -401,9 +412,10 @@ class multilevel_solver:
             try:  # try PyAMG style interface which has a residuals parameter
                 return accel(A, b, x0=x0, tol=tol, maxiter=maxiter, M=M,
                              callback=callback, residuals=residuals)[0]
-            except:  # try the scipy.sparse.linalg.isolve style interface,
-                     # which requires a call back function if a residual
-                     # history is desired
+            except:
+                # try the scipy.sparse.linalg.isolve style interface,
+                # which requires a call back function if a residual
+                # history is desired
 
                 cb = callback
                 if residuals is not None:
@@ -509,7 +521,6 @@ class multilevel_solver:
                 self.__solve(lvl + 1, coarse_x, coarse_b, cycle)
                 self.__solve(lvl + 1, coarse_x, coarse_b, 'V')
             elif cycle == "AMLI":
-                ##
                 # Run nAMLI AMLI cycles, which compute "optimal" corrections by
                 # orthogonalizing the coarse-grid corrections in the A-norm
                 nAMLI = 2
@@ -582,12 +593,12 @@ def coarse_grid_solver(solver):
 
     Examples
     --------
-    >>> from numpy import ones
+    >>> import numpy as np
     >>> from scipy.sparse import spdiags
     >>> from pyamg.gallery import poisson
     >>> from pyamg import coarse_grid_solver
     >>> A = poisson((10, 10), format='csr')
-    >>> b = A * ones(A.shape[0])
+    >>> b = A * np.ones(A.shape[0])
     >>> cgs = coarse_grid_solver('lu')
     >>> x = cgs(A, b)
     """
@@ -667,7 +678,7 @@ def coarse_grid_solver(solver):
 
             lvl = multilevel_solver.level()
             lvl.A = A
-            fn = eval('smoothing.setup_' + str(solver))
+            fn = getattr(smoothing, 'setup_' + str(solver))
             relax = fn(lvl, **kwargs)
             x = np.zeros_like(b)
             relax(A, x, b)

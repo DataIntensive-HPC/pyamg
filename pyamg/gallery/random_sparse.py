@@ -1,24 +1,26 @@
 """Random sparse matrices"""
 
-import numpy
-import scipy
+import numpy as np
+import scipy as sp
 
 __all__ = ['sprand']
 __docformat__ = "restructuredtext en"
 
-#TODO add sprandn
+# TODO add sprandn
+
 
 def _rand_sparse(m, n, density, format='csr'):
     """Helper function for sprand, sprandn"""
 
-    nnz = max( min( int(m*n*density), m*n), 0)
+    nnz = max(min(int(m*n*density), m*n), 0)
 
-    row  = numpy.random.random_integers(low=0, high=m-1, size=nnz)
-    col  = numpy.random.random_integers(low=0, high=n-1, size=nnz)
-    data = numpy.ones(nnz, dtype=float)
+    row = np.random.randint(low=0, high=m-1, size=nnz)
+    col = np.random.randint(low=0, high=n-1, size=nnz)
+    data = np.ones(nnz, dtype=float)
 
     # duplicate (i,j) entries will be summed together
-    return scipy.sparse.csr_matrix((data,(row,col)), shape=(m,n))
+    return sp.sparse.csr_matrix((data, (row, col)), shape=(m, n))
+
 
 def sprand(m, n, density, format='csr'):
     """Returns a random sparse matrix.
@@ -43,21 +45,21 @@ def sprand(m, n, density, format='csr'):
     >>> A = sprand(5,5,3/5.0)
 
     """
-    m,n = int(m),int(n)
+    m, n = int(m), int(n)
 
     # get sparsity pattern
     A = _rand_sparse(m, n, density, format='csr')
 
     # replace data with random values
-    A.data = scipy.rand(A.nnz)
+    A.data = sp.rand(A.nnz)
 
     return A.asformat(format)
 
 
-## currently returns positive semi-definite matrices
-#def sprand_spd(m, n, density, a=1.0, b=2.0, format='csr'):
+# currently returns positive semi-definite matrices
+# def sprand_spd(m, n, density, a=1.0, b=2.0, format='csr'):
 #    """Returns a random sparse, symmetric positive definite matrix
-#   
+#
 #    Parameters
 #    ----------
 #    n : int
@@ -85,13 +87,13 @@ def sprand(m, n, density, format='csr'):
 #    # get sparsity pattern
 #    A = _rand_sparse(n, n, density, format='csr')
 #
-#    A.data = scipy.rand(A.nnz)
+#    A.data = sp.rand(A.nnz)
 #
-#    A = scipy.sparse.tril(A, -1)
+#    A = sp.sparse.tril(A, -1)
 #
 #    A = A + A.T
 #
-#    d = numpy.array(A.sum(axis=1)).ravel()
+#    d = np.array(A.sum(axis=1)).ravel()
 #
 #    from pyamg.util.utils import symmetric_rescaling, diag_sparse
 #
@@ -100,7 +102,7 @@ def sprand(m, n, density, format='csr'):
 #
 #    # A now has zero row sums
 #    D_sqrt,D_sqrt_inv,A = symmetric_rescaling(A)
-#    
+#
 #    # A now has unit diagonals
 #
 #    return A.asformat(format)

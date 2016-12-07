@@ -1,26 +1,27 @@
 """Adaptive Smoothed Aggregation"""
+from __future__ import absolute_import
 
 __docformat__ = "restructuredtext en"
 
 from warnings import warn
-import numpy
-import scipy
+import numpy as np
+import scipy as sp
 from scipy.sparse import csr_matrix, bsr_matrix, isspmatrix_csr,\
-    isspmatrix_csc, isspmatrix_bsr, eye
+    isspmatrix_csc, isspmatrix_bsr, eye, SparseEfficiencyWarning
 
 from pyamg.multilevel import multilevel_solver
 from pyamg.strength import symmetric_strength_of_connection,\
     classical_strength_of_connection, evolution_strength_of_connection
-from pyamg.relaxation import gauss_seidel, gauss_seidel_nr, gauss_seidel_ne,\
+from ..relaxation.relaxation import gauss_seidel, gauss_seidel_nr, gauss_seidel_ne,\
     gauss_seidel_indexed, jacobi, polynomial
 from pyamg.relaxation.smoothing import change_smoothers, rho_D_inv_A
 from pyamg.krylov import gmres
 from pyamg.util.linalg import norm, approximate_spectral_radius
-from aggregation import smoothed_aggregation_solver
-from aggregate import standard_aggregation, lloyd_aggregation
-from smooth import jacobi_prolongation_smoother, energy_prolongation_smoother,\
+from .aggregation import smoothed_aggregation_solver
+from .aggregate import standard_aggregation, lloyd_aggregation
+from .smooth import jacobi_prolongation_smoother, energy_prolongation_smoother,\
     richardson_prolongation_smoother
-from tentative import fit_candidates
+from .tentative import fit_candidates
 from pyamg.util.utils import amalgamate, levelize_strength_or_aggregation, \
     levelize_smooth_or_improve_candidates
 
@@ -64,8 +65,8 @@ def eliminate_local_candidates(x, AggOp, A, T, Ca=1.0, **kwargs):
         Returns a vector of length num_aggregates where entry i is <z, z>_i
         """
 
-        z = numpy.ravel(z)*numpy.ravel(z)
-        innerp = numpy.zeros((1, AggOp.shape[1]), dtype=z.dtype)
+        z = np.ravel(z)*np.ravel(z)
+        innerp = np.zeros((1, AggOp.shape[1]), dtype=z.dtype)
         for j in range(nPDEs):
             innerp += z[slice(j, ndof, nPDEs)].reshape(1, -1) * AggOp
 
@@ -78,9 +79,9 @@ def eliminate_local_candidates(x, AggOp, A, T, Ca=1.0, **kwargs):
         (card(agg_i)/A.shape[0]) ( <Az, z>/rho(A) )
         """
         rho = approximate_spectral_radius(A)
-        zAz = numpy.dot(z.reshape(1, -1), A*z.reshape(-1, 1))
+        zAz = np.dot(z.reshape(1, -1), A*z.reshape(-1, 1))
         card = nPDEs*(AggOp.indptr[1:]-AggOp.indptr[:-1])
-        weights = (numpy.ravel(card)*zAz)/(A.shape[0]*rho)
+        weights = (np.ravel(card)*zAz)/(A.shape[0]*rho)
         return weights.reshape(-1, 1)
 
     # Run test 1, which finds where x is small relative to its energy
@@ -94,7 +95,7 @@ def eliminate_local_candidates(x, AggOp, A, T, Ca=1.0, **kwargs):
                                          AggOp, nPDEs, ndof) <= weights
 
     # Combine masks and zero out corresponding aggregates in x
-    mask = numpy.ravel(mask1 + mask2).nonzero()[0]
+    mask = np.ravel(mask1 + mask2).nonzero()[0]
     if mask.shape[0] > 0:
         mask = nPDEs*AggOp[:, mask].indices
         for j in range(nPDEs):
@@ -112,7 +113,7 @@ def unpack_arg(v):
 def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
                        pdef=True, num_candidates=1, candidate_iters=5,
                        improvement_iters=0, epsilon=0.1,
-                       max_levels=10, max_coarse=100, aggregate='standard',
+                       max_levels=10, max_coarse=10, aggregate='standard',
                        prepostsmoother=('gauss_seidel',
                                         {'sweep': 'symmetric'}),
                        smooth=('jacobi', {}), strength='symmetric',
@@ -203,12 +204,12 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
     --------
     >>> from pyamg.gallery import stencil_grid
     >>> from pyamg.aggregation import adaptive_sa_solver
-    >>> import numpy
+    >>> import numpy as np
     >>> A=stencil_grid([[-1,-1,-1],[-1,8.0,-1],[-1,-1,-1]],\
                        (31,31),format='csr')
     >>> [asa,work] = adaptive_sa_solver(A,num_candidates=1)
     >>> residuals=[]
-    >>> x=asa.solve(b=numpy.ones((A.shape[0],)), x0=numpy.ones((A.shape[0],)),\
+    >>> x=asa.solve(b=np.ones((A.shape[0],)), x0=np.ones((A.shape[0],)),\
                     residuals=residuals)
 
     References
@@ -223,8 +224,7 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
     if not (isspmatrix_csr(A) or isspmatrix_bsr(A)):
         try:
             A = csr_matrix(A)
-            warn("Implicit conversion of A to CSR",
-                 scipy.sparse.SparseEfficiencyWarning)
+            warn("Implicit conversion of A to CSR", SparseEfficiencyWarning)
         except:
             raise TypeError('Argument A must have type csr_matrix or\
                             bsr_matrix, or be convertible to csr_matrix')
@@ -234,9 +234,8 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
         raise ValueError('expected square matrix')
 
     # Track work in terms of relaxation
-    work = numpy.zeros((1,))
+    work = np.zeros((1,))
 
-    ##
     # Levelize the user parameters, so that they become lists describing the
     # desired user option on each level.
     max_levels, max_coarse, strength =\
@@ -268,7 +267,8 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
                                          max_coarse=max_coarse,
                                          aggregate=aggregate,
                                          coarse_solver=coarse_solver,
-                                         improve_candidates=None, keep=True, **kwargs)
+                                         improve_candidates=None, keep=True,
+                                         **kwargs)
         if len(sa.levels) > 1:
             # Set strength-of-connection and aggregation
             aggregate = [('predefined', {'AggOp': sa.levels[i].AggOp.tocsr()})
@@ -276,7 +276,6 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
             strength = [('predefined', {'C': sa.levels[i].C.tocsr()})
                         for i in range(len(sa.levels) - 1)]
 
-    ##
     # Develop additional candidates
     for i in range(num_candidates):
         x = general_setup_stage(
@@ -286,21 +285,21 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
                                         smooth=smooth,
                                         coarse_solver=coarse_solver,
                                         aggregate=aggregate,
-                                        strength=strength, improve_candidates=None,
+                                        strength=strength,
+                                        improve_candidates=None,
                                         keep=True, **kwargs),
             symmetry, candidate_iters, prepostsmoother, smooth,
             eliminate_local, coarse_solver, work)
 
         # Normalize x and add to candidate list
         x = x/norm(x, 'inf')
-        if numpy.isinf(x[0]) or numpy.isnan(x[0]):
+        if np.isinf(x[0]) or np.isnan(x[0]):
             raise ValueError('Adaptive candidate is all 0.')
-        B = numpy.hstack((B, x.reshape(-1, 1)))
+        B = np.hstack((B, x.reshape(-1, 1)))
 
-    ##
     # Improve candidates
     if B.shape[1] > 1 and improvement_iters > 0:
-        b = numpy.zeros((A.shape[0], 1), dtype=A.dtype)
+        b = np.zeros((A.shape[0], 1), dtype=A.dtype)
         for i in range(improvement_iters):
             for j in range(B.shape[1]):
                 # Run a V-cycle built on everything except candidate j, while
@@ -315,10 +314,10 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
                                                 coarse_solver=coarse_solver,
                                                 aggregate=aggregate,
                                                 strength=strength,
-                                                improve_candidates=None, keep=True,
-                                                **kwargs)
+                                                improve_candidates=None,
+                                                keep=True, **kwargs)
                 x = sa_temp.solve(b, x0=x0,
-                                  tol=float(numpy.finfo(numpy.float).tiny),
+                                  tol=float(np.finfo(np.float).tiny),
                                   maxiter=candidate_iters, cycle='V')
                 work[:] += 2 * sa_temp.operator_complexity() *\
                     sa_temp.levels[0].A.nnz * candidate_iters
@@ -333,12 +332,11 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
 
                 # Normalize x and add to candidate list
                 x = x/norm(x, 'inf')
-                if numpy.isinf(x[0]) or numpy.isnan(x[0]):
+                if np.isinf(x[0]) or np.isnan(x[0]):
                     raise ValueError('Adaptive candidate is all 0.')
-                B = numpy.hstack((B, x.reshape(-1, 1)))
+                B = np.hstack((B, x.reshape(-1, 1)))
 
     elif improvement_iters > 0:
-        ##
         # Special case for improving a single candidate
         max_levels = len(aggregate) + 1
         max_coarse = 0
@@ -357,7 +355,8 @@ def adaptive_sa_solver(A, initial_candidates=None, symmetry='hermitian',
                                         smooth=smooth,
                                         coarse_solver=coarse_solver,
                                         aggregate=aggregate, strength=strength,
-                                        improve_candidates=None, keep=keep, **kwargs),
+                                        improve_candidates=None, keep=keep,
+                                        **kwargs),
             work[0]/A.nnz]
 
 
@@ -383,27 +382,26 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
        http://www.cs.umn.edu/~maclach/research/aSA2.pdf
     """
 
-    ##
     # Define relaxation routine
     def relax(A, x):
         fn, kwargs = unpack_arg(prepostsmoother)
         if fn == 'gauss_seidel':
-            gauss_seidel(A, x, numpy.zeros_like(x),
+            gauss_seidel(A, x, np.zeros_like(x),
                          iterations=candidate_iters, sweep='symmetric')
         elif fn == 'gauss_seidel_nr':
-            gauss_seidel_nr(A, x, numpy.zeros_like(x),
+            gauss_seidel_nr(A, x, np.zeros_like(x),
                             iterations=candidate_iters, sweep='symmetric')
         elif fn == 'gauss_seidel_ne':
-            gauss_seidel_ne(A, x, numpy.zeros_like(x),
+            gauss_seidel_ne(A, x, np.zeros_like(x),
                             iterations=candidate_iters, sweep='symmetric')
         elif fn == 'jacobi':
-            jacobi(A, x, numpy.zeros_like(x), iterations=1,
+            jacobi(A, x, np.zeros_like(x), iterations=1,
                    omega=1.0 / rho_D_inv_A(A))
         elif fn == 'richardson':
-            polynomial(A, x, numpy.zeros_like(x), iterations=1,
-                       coeffients=[1.0/approximate_spectral_radius(A)])
+            polynomial(A, x, np.zeros_like(x), iterations=1,
+                       coefficients=[1.0/approximate_spectral_radius(A)])
         elif fn == 'gmres':
-            x[:] = (gmres(A, numpy.zeros_like(x), x0=x,
+            x[:] = (gmres(A, np.zeros_like(x), x0=x,
                     maxiter=candidate_iters)[0]).reshape(x.shape)
         else:
             raise TypeError('Unrecognized smoother')
@@ -411,16 +409,19 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
     # flag for skipping steps f-i in step 4
     skip_f_to_i = True
 
-    #step 1
+    # step 1
     A_l = A
     if initial_candidate is None:
-        x = scipy.rand(A_l.shape[0], 1)
-        if A_l.dtype == complex:
-            x = x + 1.0j*scipy.rand(A_l.shape[0], 1)
+        x = sp.rand(A_l.shape[0], 1).astype(A_l.dtype)
+        # The following type check matches the usual 'complex' type,
+        # but also numpy data types such as 'complex64', 'complex128'
+        # and 'complex256'.
+        if A_l.dtype.name.startswith('complex'):
+            x = x + 1.0j*sp.rand(A_l.shape[0], 1)
     else:
-        x = numpy.array(initial_candidate, dtype=A_l.dtype)
+        x = np.array(initial_candidate, dtype=A_l.dtype)
 
-    #step 2
+    # step 2
     relax(A_l, x)
     work[:] += A_l.nnz * candidate_iters*2
 
@@ -440,7 +441,7 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
     StrengthOps = []
 
     while A.shape[0] > max_coarse and max_levels > 1:
-    # The real check to break from the while loop is below
+        # The real check to break from the while loop is below
 
         # Begin constructing next level
         fn, kwargs = unpack_arg(strength[len(As)-1])  # step 4b
@@ -453,10 +454,10 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
             # Diagonal must be nonzero
             C_l = C_l + eye(C_l.shape[0], C_l.shape[1], format='csr')
             if isspmatrix_bsr(A_l):
-                C_l = amalgamate(C, A_l.blocksize[0])
+                C_l = amalgamate(C_l, A_l.blocksize[0])
         elif (fn == 'ode') or (fn == 'evolution'):
             C_l = evolution_strength_of_connection(A_l,
-                                                   numpy.ones(
+                                                   np.ones(
                                                        (A_l.shape[0], 1),
                                                        dtype=A.dtype),
                                                    **kwargs)
@@ -470,12 +471,12 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
 
         # In SA, strength represents "distance", so we take magnitude of
         # complex values
-        if C_l.dtype == complex:
-            C_l.data = numpy.abs(C_l.data)
+        if C_l.dtype.name.startswith('complex'):
+            C_l.data = np.abs(C_l.data)
 
         # Create a unified strength framework so that large values represent
         # strong connections and small values represent weak connections
-        if (fn == 'ode') or (fn == 'evolutin') or (fn == 'energy_based'):
+        if (fn == 'ode') or (fn == 'evolution') or (fn == 'energy_based'):
             C_l.data = 1.0 / C_l.data
 
         # aggregation
@@ -525,19 +526,19 @@ def initial_setup_stage(A, symmetry, pdef, candidate_iters, epsilon,
             relax(A_l, x)  # step 4h
             work[:] += A_l.nnz*candidate_iters*2
             if pdef is True:
-                x_A_x = numpy.dot(numpy.conjugate(x).T, A_l*x)
-                xhat_A_xhat = numpy.dot(numpy.conjugate(x_hat).T, A_l*x_hat)
+                x_A_x = np.dot(np.conjugate(x).T, A_l*x)
+                xhat_A_xhat = np.dot(np.conjugate(x_hat).T, A_l*x_hat)
                 err_ratio = (x_A_x/xhat_A_xhat)**(1.0/candidate_iters)
             else:
                 # use A.H A inner-product
                 Ax = A_l * x
-                #Axhat = A_l * x_hat
-                x_A_x = numpy.dot(numpy.conjugate(Ax).T, Ax)
-                xhat_A_xhat = numpy.dot(numpy.conjugate(x_hat).T, A_l*x_hat)
+                # Axhat = A_l * x_hat
+                x_A_x = np.dot(np.conjugate(Ax).T, Ax)
+                xhat_A_xhat = np.dot(np.conjugate(x_hat).T, A_l*x_hat)
                 err_ratio = (x_A_x/xhat_A_xhat)**(1.0/candidate_iters)
 
             if err_ratio < epsilon:  # step 4i
-                #print "sufficient convergence, skipping"
+                # print "sufficient convergence, skipping"
                 skip_f_to_i = True
                 if x_A_x == 0:
                     x = x_hat  # need to restore x
@@ -598,34 +599,34 @@ def general_setup_stage(ml, symmetry, candidate_iters, prepostsmoother,
         bnnz = T.indptr[-1]
         # the K+1 represents the new dof introduced by the new candidate.  the
         # bridge 'T' ignores this new dof and just maps zeros there
-        data = numpy.zeros((bnnz, K+1, K), dtype=T.dtype)
+        data = np.zeros((bnnz, K+1, K), dtype=T.dtype)
         data[:, :-1, :] = T.data
         return bsr_matrix((data, T.indices, T.indptr),
-                          shape=((K + 1) * (M / K), N))
+                          shape=((K + 1) * int(M / K), N))
 
     def expand_candidates(B_old, nodesize):
         # insert a new dof that is always zero, to create NullDim+1 dofs per
         # node in B
         NullDim = B_old.shape[1]
-        nnodes = B_old.shape[0] / nodesize
-        Bnew = numpy.zeros((nnodes, nodesize+1, NullDim), dtype=B_old.dtype)
+        nnodes = int(B_old.shape[0] / nodesize)
+        Bnew = np.zeros((nnodes, nodesize+1, NullDim), dtype=B_old.dtype)
         Bnew[:, :-1, :] = B_old.reshape(nnodes, nodesize, NullDim)
         return Bnew.reshape(-1, NullDim)
 
     levels = ml.levels
 
-    x = scipy.rand(levels[0].A.shape[0], 1)
-    if levels[0].A.dtype == complex:
-        x = x + 1.0j*scipy.rand(levels[0].A.shape[0], 1)
-    b = numpy.zeros_like(x)
+    x = sp.rand(levels[0].A.shape[0], 1)
+    if levels[0].A.dtype.name.startswith('complex'):
+        x = x + 1.0j*sp.rand(levels[0].A.shape[0], 1)
+    b = np.zeros_like(x)
 
-    x = ml.solve(b, x0=x, tol=float(numpy.finfo(numpy.float).tiny),
+    x = ml.solve(b, x0=x, tol=float(np.finfo(np.float).tiny),
                  maxiter=candidate_iters)
     work[:] += ml.operator_complexity()*ml.levels[0].A.nnz*candidate_iters*2
 
     T0 = levels[0].T.copy()
 
-    #TEST FOR CONVERGENCE HERE
+    # TEST FOR CONVERGENCE HERE
 
     for i in range(len(ml.levels) - 2):
         # alpha-SA paper does local elimination here, but after talking
@@ -636,7 +637,7 @@ def general_setup_stage(ml, symmetry, candidate_iters, prepostsmoother,
         #    levels[i].T, **kwargs)
 
         # add candidate to B
-        B = numpy.hstack((levels[i].B, x.reshape(-1, 1)))
+        B = np.hstack((levels[i].B, x.reshape(-1, 1)))
 
         # construct Ptent
         T, R = fit_candidates(levels[i].AggOp, B)
@@ -710,8 +711,8 @@ def general_setup_stage(ml, symmetry, candidate_iters, prepostsmoother,
         solver = multilevel_solver(levels[i+1:], coarse_solver=coarse_solver)
         change_smoothers(solver, presmoother=prepostsmoother,
                          postsmoother=prepostsmoother)
-        x = solver.solve(numpy.zeros_like(x), x0=x,
-                         tol=float(numpy.finfo(numpy.float).tiny),
+        x = solver.solve(np.zeros_like(x), x0=x,
+                         tol=float(np.finfo(np.float).tiny),
                          maxiter=candidate_iters)
         work[:] += 2 * solver.operator_complexity() * solver.levels[0].A.nnz *\
             candidate_iters*2
@@ -729,28 +730,28 @@ def general_setup_stage(ml, symmetry, candidate_iters, prepostsmoother,
         if fn == 'gauss_seidel':
             # only relax at nonzeros, so as not to mess up any locally dropped
             # candidates
-            indices = numpy.ravel(x).nonzero()[0]
-            gauss_seidel_indexed(lvl.A, x, numpy.zeros_like(x), indices,
+            indices = np.ravel(x).nonzero()[0]
+            gauss_seidel_indexed(lvl.A, x, np.zeros_like(x), indices,
                                  iterations=candidate_iters, sweep='symmetric')
 
         elif fn == 'gauss_seidel_ne':
-            gauss_seidel_ne(lvl.A, x, numpy.zeros_like(x),
+            gauss_seidel_ne(lvl.A, x, np.zeros_like(x),
                             iterations=candidate_iters, sweep='symmetric')
 
         elif fn == 'gauss_seidel_nr':
-            gauss_seidel_nr(lvl.A, x, numpy.zeros_like(x),
+            gauss_seidel_nr(lvl.A, x, np.zeros_like(x),
                             iterations=candidate_iters, sweep='symmetric')
 
         elif fn == 'jacobi':
-            jacobi(lvl.A, x, numpy.zeros_like(x), iterations=1,
+            jacobi(lvl.A, x, np.zeros_like(x), iterations=1,
                    omega=1.0 / rho_D_inv_A(lvl.A))
 
         elif fn == 'richardson':
-            polynomial(lvl.A, x, numpy.zeros_like(x), iterations=1,
-                       coeffients=[1.0/approximate_spectral_radius(lvl.A)])
+            polynomial(lvl.A, x, np.zeros_like(x), iterations=1,
+                       coefficients=[1.0/approximate_spectral_radius(lvl.A)])
 
         elif fn == 'gmres':
-            x[:] = (gmres(lvl.A, numpy.zeros_like(x), x0=x,
+            x[:] = (gmres(lvl.A, np.zeros_like(x), x0=x,
                           maxiter=candidate_iters)[0]).reshape(x.shape)
         else:
             raise TypeError('Unrecognized smoother')

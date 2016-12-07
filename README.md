@@ -1,26 +1,38 @@
-![](Docs/logo/PyAMG_logo.png)
+[![Build Status](https://img.shields.io/travis/pyamg/pyamg/master.svg?style=flat-square)](https://travis-ci.org/pyamg/pyamg)
+[![Coverage Status](https://img.shields.io/coveralls/pyamg/pyamg/master.svg?style=flat-square)](https://coveralls.io/r/pyamg/pyamg)
+[![PyPi](https://img.shields.io/pypi/pyversions/pyamg.svg?style=flat-square)](https://pypi.python.org/pypi/pyamg/)
+[![Downloads](https://img.shields.io/pypi/dm/pyamg.svg?style=flat-square)](https://pypi.python.org/pypi/pyamg/)
 
-PyAMG is developed by **[Nathan Bell](http://graphics.cs.uiuc.edu/~wnbell/)**, **[Luke Olson](http://www.cs.uiuc.edu/homes/lukeo/)**, and **[Jacob Schroder](http://grandmaster.colorado.edu/~jacob/index.html)**, in the **[Deparment of Computer Science](http://www.cs.uiuc.edu)** at the **[University of Illinois at Urbana-Champaign](http://www.illinois.edu)**.  Portions of the project were partially supported by the [NSF](http://www.nsf.gov) under award DMS-0612448.
+# Installation
+PyAMG requires `numpy` and `scipy`
 
-![](Docs/logo/CS_logo.png)
+      pip install pyamg
 
-----
+or
 
-[![Build Status](https://travis-ci.org/pyamg/pyamg.png?branch=master)](https://travis-ci.org/pyamg/pyamg)
+      python setup.py install
+
 
 # Introduction
 
 PyAMG is a library of **Algebraic Multigrid (AMG)** solvers with a convenient Python interface.  
+
+![](Docs/logo/PyAMG_logo.png)
+![](Docs/logo/CS_logo.png)
+
+PyAMG is developed by **[Nathan Bell](http://graphics.cs.uiuc.edu/~wnbell/)**, **[Luke Olson](http://www.cs.uiuc.edu/homes/lukeo/)**, and **[Jacob Schroder](http://grandmaster.colorado.edu/~jacob/index.html)**, in the **[Deparment of Computer Science](http://www.cs.uiuc.edu)** at the **[University of Illinois at Urbana-Champaign](http://www.illinois.edu)**.  Portions of the project were partially supported by the [NSF](http://www.nsf.gov) under award DMS-0612448.
+
+
 
 # Citing
 
 <pre>
 @MISC{BeOlSc2011,
       author = "Bell, W. N. and Olson, L. N. and Schroder, J. B.",
-      title = "{PyAMG}: Algebraic Multigrid Solvers in {Python} v2.0",
-      year = "2011",
+      title = "{PyAMG}: Algebraic Multigrid Solvers in {Python} v3.0",
+      year = "2015",
       url = "http://www.pyamg.org",
-      note = "Release 2.0"
+      note = "Release 3.0"
       }
 </pre>
 
@@ -29,24 +41,6 @@ PyAMG is a library of **Algebraic Multigrid (AMG)** solvers with a convenient Py
 Contact the [pyamg-user group](http://groups.google.com/group/pyamg-user)
 
 Look at the [Tutorial](https://github.com/pyamg/pyamg/wiki/Tutorial) or the [Examples](https://github.com/pyamg/pyamg/wiki/Examples) (for instance  the [0STARTHERE](https://github.com/pyamg/pyamg-examples/blob/master/0STARTHERE/demo.py) example)
-
-Read the [documentation]() (TODO: new link coming)
-
-or
-
-Try the [docstrings](http://docs.python.org/tutorial/controlflow.html#documentation-strings): for example
-
-````python
-print pyamg.strength.__doc__
-````
-
-or
-
-````python
-pyamg.strength?
-````
-
-in [ipython](http://www.ipython.org)
 
 # What is AMG?
 
@@ -65,37 +59,6 @@ and experimental support for:
 - **Compatible Relaxation (CR)**
 
 The predominant portion of PyAMG is written in Python with a smaller amount of supporting C++ code for performance critical operations.
-
-# PyAMG Objectives
-
-**ease of use**
-
-- interface is accessible to non-experts
-- extensive documentation and references
-
-**speed**
-
-- solves problems with millions of unknowns efficiently
-- core multigrid algorithms are implemented in C++ and translated through SWIG
-- sparse matrix support provided by scipy.sparse
-
-**readability**
-
-- source code is organized into intuitive components
-
-**extensibility**
-
-- core components can be reused to implement additional techniques
-- new features are easy integrated
-
-**experimentation**
-
-- facilitates rapid prototyping and analysis of multigrid methods
-
-**portability**
-
-- tested on several platforms
-- relies only on Python, NumPy, and SciPy
 
 # Example Usage
 
@@ -129,6 +92,6 @@ Program output:
         3         7825        70657 [ 2.58%]
         4         1937        17973 [ 0.66%]
         5          484         4728 [ 0.17%]
-    
+
     residual norm is 1.86112114946e-06
 </pre>

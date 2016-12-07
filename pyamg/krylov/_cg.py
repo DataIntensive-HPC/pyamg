@@ -1,7 +1,5 @@
-import numpy
-from numpy import inner, conjugate, asarray, mod, ravel, sqrt
+import numpy as np
 from scipy.sparse.linalg.isolve.utils import make_system
-from scipy.sparse.sputils import upcast
 from pyamg.util.linalg import norm
 from warnings import warn
 
@@ -9,10 +7,11 @@ __docformat__ = "restructuredtext en"
 
 __all__ = ['cg']
 
-def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None, 
+
+def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
        callback=None, residuals=None):
     '''Conjugate Gradient algorithm
-    
+
     Solves the linear system Ax = b. Left preconditioning is supported.
 
     Parameters
@@ -31,7 +30,7 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
     xtype : type
         dtype for the solution, default is automatic type detection
     M : {array, matrix, sparse matrix, LinearOperator}
-        n x n, inverted preconditioner, i.e. solve M A x = b.
+        n x n, inverted preconditioner, i.e. solve M A x = M b.
     callback : function
         User-supplied function is called after each iteration as
         callback(xk), where xk is the current solution vector
@@ -39,19 +38,19 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
         residuals contains the residual norm history,
         including the initial residual.  The preconditioner norm
         is used, instead of the Euclidean norm.
-     
+
     Returns
-    -------    
+    -------
     (xNew, info)
     xNew : an updated guess to the solution of Ax = b
     info : halting status of cg
 
-            ==  ======================================= 
+            ==  =======================================
             0   successful exit
             >0  convergence to tolerance not achieved,
-                return iteration count instead.  
+                return iteration count instead.
             <0  numerical breakdown, or illegal input
-            ==  ======================================= 
+            ==  =======================================
 
     Notes
     -----
@@ -61,31 +60,29 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
     still supported as a legacy.
 
     The residual in the preconditioner norm is both used for halting and
-    returned in the residuals list. 
+    returned in the residuals list.
 
     Examples
     --------
     >>> from pyamg.krylov.cg import cg
     >>> from pyamg.util.linalg import norm
-    >>> import numpy 
+    >>> import numpy as np
     >>> from pyamg.gallery import poisson
     >>> A = poisson((10,10))
-    >>> b = numpy.ones((A.shape[0],))
+    >>> b = np.ones((A.shape[0],))
     >>> (x,flag) = cg(A,b, maxiter=2, tol=1e-8)
     >>> print norm(b - A*x)
     10.9370700187
 
     References
     ----------
-    .. [1] Yousef Saad, "Iterative Methods for Sparse Linear Systems, 
+    .. [1] Yousef Saad, "Iterative Methods for Sparse Linear Systems,
        Second Edition", SIAM, pp. 262-67, 2003
        http://www-users.cs.umn.edu/~saad/books.html
 
     '''
-    A,M,x,b,postprocess = make_system(A,M,x0,b,xtype=None)
-    n = len(b)
-    
-    ##
+    A, M, x, b, postprocess = make_system(A, M, x0, b, xtype=None)
+
     # Ensure that warnings are always reissued from this function
     import warnings
     warnings.filterwarnings('always', module='pyamg\.krylov\._cg')
@@ -95,28 +92,29 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
         maxiter = int(1.3*len(b)) + 2
     elif maxiter < 1:
         raise ValueError('Number of iterations must be positive')
-    
+
     # choose tolerance for numerically zero values
-    t = A.dtype.char
-    eps = numpy.finfo(numpy.float).eps
-    feps = numpy.finfo(numpy.single).eps
-    geps = numpy.finfo(numpy.longfloat).eps
-    _array_precision = {'f': 0, 'd': 1, 'g': 2, 'F': 0, 'D': 1, 'G':2}
-    numerically_zero = {0: feps*1e3, 1: eps*1e6, 2: geps*1e6}[_array_precision[t]]
+    # t = A.dtype.char
+    # eps = np.finfo(np.float).eps
+    # feps = np.finfo(np.single).eps
+    # geps = np.finfo(np.longfloat).eps
+    # _array_precision = {'f': 0, 'd': 1, 'g': 2, 'F': 0, 'D': 1, 'G': 2}
+    # numerically_zero = {0: feps*1e3, 1: eps*1e6,
+    #                    2: geps*1e6}[_array_precision[t]]
 
     # setup method
-    r  = b - A*x
-    z  = M*r
-    p  = z.copy()
-    rz = inner(r.conjugate(), z)
-    
+    r = b - A*x
+    z = M*r
+    p = z.copy()
+    rz = np.inner(r.conjugate(), z)
+
     # use preconditioner norm
-    normr = sqrt(rz)
+    normr = np.sqrt(rz)
 
     if residuals is not None:
-        residuals[:] = [normr] #initial residual 
+        residuals[:] = [normr]  # initial residual
 
-    # Check initial guess ( scaling by b, if b != 0, 
+    # Check initial guess ( scaling by b, if b != 0,
     #   must account for case when norm(b) is very small)
     normb = norm(b)
     if normb == 0.0:
@@ -127,7 +125,7 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
     # Scale tol by ||r_0||_M
     if normr != 0.0:
         tol = tol*normr
-   
+
     # How often should r be recomputed
     recompute_r = 8
 
@@ -137,38 +135,38 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
         Ap = A*p
 
         rz_old = rz
-                                                  # Step # in Saad's pseudocode
-        pAp = inner(Ap.conjugate(), p)             # check curvature of A
+        # Step number in Saad's pseudocode
+        pAp = np.inner(Ap.conjugate(), p)            # check curvature of A
         if pAp < 0.0:
             warn("\nIndefinite matrix detected in CG, aborting\n")
             return (postprocess(x), -1)
 
-        alpha = rz/pAp                            # 3  
-        x    += alpha * p                         # 4
+        alpha = rz/pAp                            # 3
+        x += alpha * p                            # 4
 
-        if mod(iter, recompute_r) and iter > 0:   # 5
-            r-= alpha * Ap                  
+        if np.mod(iter, recompute_r) and iter > 0:   # 5
+            r -= alpha * Ap
         else:
             r = b - A*x
 
-        z     = M*r                               # 6
-        rz    = inner(r.conjugate(), z)
+        z = M*r                                   # 6
+        rz = np.inner(r.conjugate(), z)
 
         if rz < 0.0:                              # check curvature of M
             warn("\nIndefinite preconditioner detected in CG, aborting\n")
             return (postprocess(x), -1)
 
-        beta  = rz/rz_old                         # 7
-        p    *= beta                              # 8
-        p    += z
+        beta = rz/rz_old                          # 7
+        p *= beta                                 # 8
+        p += z
 
         iter += 1
-        
-        normr = sqrt(rz)                          # use preconditioner norm
+
+        normr = np.sqrt(rz)                          # use preconditioner norm
 
         if residuals is not None:
             residuals.append(normr)
-        
+
         if callback is not None:
             callback(x)
 
@@ -177,13 +175,14 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
         elif rz == 0.0:
             # important to test after testing normr < tol. rz == 0.0 is an
             # indicator of convergence when r = 0.0
-            warn("\nSingular preconditioner detected in CG, ceasing iterations\n")
+            warn("\nSingular preconditioner detected in CG, ceasing \
+                  iterations\n")
             return (postprocess(x), -1)
-        
+
         if iter == maxiter:
             return (postprocess(x), iter)
 
-#if __name__ == '__main__':
+# if __name__ == '__main__':
 #    # from numpy import diag
 #    # A = random((4,4))
 #    # A = A*A.transpose() + diag([10,10,10,10])
@@ -192,14 +191,16 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
 #
 #    from pyamg.gallery import stencil_grid
 #    from numpy.random import random
-#    A = stencil_grid([[0,-1,0],[-1,4,-1],[0,-1,0]],(100,100),dtype=float,format='csr')
+#    A = stencil_grid([[0,-1,0],[-1,4,-1],[0,-1,0]],(100,100),
+#                     dtype=float,format='csr')
 #    b = random((A.shape[0],))
 #    x0 = random((A.shape[0],))
 #
 #    import time
 #    from scipy.sparse.linalg.isolve import cg as icg
 #
-#    print '\n\nTesting CG with %d x %d 2D Laplace Matrix'%(A.shape[0],A.shape[0])
+#    print '\n\nTesting CG with %d x %d 2D Laplace Matrix' % \
+#           (A.shape[0],A.shape[0])
 #    t1=time.time()
 #    (x,flag) = cg(A,b,x0,tol=1e-8,maxiter=100)
 #    t2=time.time()
@@ -213,5 +214,3 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, xtype=None, M=None,
 #    print '\n%s took %0.3f ms' % ('linalg cg', (t2-t1)*1000.0)
 #    print 'norm = %g'%(norm(b - A*y))
 #    print 'info flag = %d'%(flag)
-#
-#    
